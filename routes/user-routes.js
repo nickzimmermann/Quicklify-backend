@@ -9,24 +9,25 @@ const jwt = require('jsonwebtoken');
 const jwtSecret = process.env.JWT_SECRET;
 
 // Get all of the users
-// http://localhost:3001/users
-router.get('/',
+// http://localhost:3001/users/
+router.get('/', 
     (req, res) => {
 
         UserModel
         .find()
         .then(
-            (dbDocument) => {
+            (dbDocument)=>{
                 res.send(dbDocument)
             }
         )
         .catch(
             (error) => {
-                console.log(error)
+                console.log(error);
             }
         )
+
     }
-)
+);
 
 // Post a new user
 // http://localhost:3001/users/create
@@ -42,27 +43,36 @@ router.post('/create',
             phoneNumber: req.body.phoneNumber
         }
 
-        // If Email is unique, create account
         UserModel
-        .findOne({ email: formData.email }) // for example: johndoe@gmail.com
+        .findOne({ email: formData.email }) // for example: jondoe@gmail.com
         .then(
             async (dbDocument) => {
 
                 // If email exists, reject request
                 if(dbDocument) {
-                    res.send("Sorry, an account with this email already exists.")
-                }
+                    res.json(
+                        {
+                            status: "unsuccessful",
+                            message: "Sorry, an account with this email already exists."
+                        }
+                    )
+                } 
 
                 // Otherwise, create the account
                 else {
 
-                    // If avatar file is included... 
+                    // If avatar file is included...
                     if( Object.values(req.files).length > 0 ) {
+
                         const files = Object.values(req.files);
+                        
                         // upload to Cloudinary
                         await cloudinary.uploader.upload(
                             files[0].path,
                             (cloudinaryErr, cloudinaryResult) => {
+
+                                console.log(cloudinaryErr, cloudinaryResult)
+
                                 if(cloudinaryErr) {
                                     console.log(cloudinaryErr);
                                 } else {
@@ -72,6 +82,7 @@ router.post('/create',
                             }
                         )
                     };
+
 
                     // Generate a Salt
                     bcryptjs.genSalt(
@@ -92,32 +103,46 @@ router.post('/create',
                                     )
                                     .then(
                                         (dbDocument) => {
-                                            res.send(dbDocument);
+                                            res.json(
+                                                {
+                                                    dbDocument: dbDocument,
+                                                    status: "successful"
+                                                }
+                                            );
                                         }
                                     )
                                     .catch(
                                         (error) => {
                                             console.log(error);
+                                            res.json(
+                                                {
+                                                    status: "unsuccessful"
+                                                }
+                                            )
                                         }
                                     );
                                 }
                             )
                         }
-                    );
-
+                    );                
                 }
             }
         )
         .catch(
-            (err) => {
+            (err)=>{
                 console.log(err);
+                res.json(
+                    {
+                        status: "unsuccessful"
+                    }
+                )
             }
         )
     }
 );
 
 // Login user
-router.post('/login',
+router.post('/login', 
     (req, res) => {
 
         // Capture form data
@@ -125,20 +150,22 @@ router.post('/login',
             email: req.body.email,
             password: req.body.password,
         }
+
         // Check if email exists
-        UserModel.findOne({ email: formData.email })
+        UserModel
+        .findOne({ email: formData.email })
         .then(
             (dbDocument) => {
                 // If email exists
                 if(dbDocument) {
-                    // Compare the password sent against password in database
+                    // Compare the password sent againt password in database
                     bcryptjs.compare(
-                        formData.password,              // password user sent
-                        dbDocument.password             // password in database
+                        formData.password,          // password user sent
+                        dbDocument.password         // password in database
                     )
                     .then(
                         (isMatch) => {
-                            // If password match...
+                            // If passwords match...
                             if(isMatch) {
                                 // Generate the Payload
                                 const payload = {
@@ -152,16 +179,29 @@ router.post('/login',
                                     jwtSecret,
                                     (err, jsonwebtoken) => {
                                         if(err) {
-                                            console.log(err);
+                                            res.json(
+                                                {
+                                                    status: "unsuccessful",
+                                                }
+                                            );
                                         }
                                         else {
                                             // Send the jsonwebtoken to the client
-                                            res.send(jsonwebtoken);
+                                            res.json(
+                                                {
+                                                    status: "successful",
+                                                    jsonwebtoken: jsonwebtoken,
+                                                    firstName: dbDocument.firstName,
+                                                    lastName: dbDocument.lastName,
+                                                    email: dbDocument.email,
+                                                    avatar: dbDocument.avatar
+                                                }
+                                            );
                                         }
                                     }
                                 )
                             }
-                            // If password don't match, reject login
+                            // If passwords don't match, reject login
                             else {
                                 res.send("Wrong email or password");
                             }
@@ -169,7 +209,11 @@ router.post('/login',
                     )
                     .catch(
                         (err) => {
-                            console.log(err)
+                            res.json(
+                                {
+                                    status: "unsuccessful"
+                                }
+                            );
                         }
                     )
                 }
@@ -186,7 +230,7 @@ router.post('/login',
             }
         )
     }
-)
+);
 
 // Export the routes for 'users'
 module.exports = router;
